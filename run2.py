@@ -33,22 +33,20 @@ class Graph:
             self.nodes[node1].add_neighbor(node2)
             self.nodes[node2].add_neighbor(node1)
 
-    def bfs_shortest_path(self, start: str, target_gateways: Set[str]) -> Tuple[Optional[List[str]], Optional[str]]:
-        if start in target_gateways:
-            return [start], start
-
-        queue = deque([start])
-        distances = {start: 0}
-        previous = {start: None}
+    def bfs_shortest_path(self, virus_start_node: str, target_gateways: Set[str]) -> Tuple[Optional[List[str]], Optional[str]]:
+        queue = deque([virus_start_node])
+        distances: dict[str, Optional[int]]= {virus_start_node: 0}
+        previous_node: dict[str, Optional[str]] = {virus_start_node: None}
 
         while queue:
-            current = queue.popleft()
-            for neighbour in sorted(self.nodes[current].neighbors):  # лексикографический порядок
-                if neighbour not in distances:
-                    distances[neighbour] = distances[current] + 1
-                    previous[neighbour] = current
+            current_node = queue.popleft()
+            for neighbour in sorted(self.nodes[current_node].neighbors):
+                if neighbour not in distances:  # Вычисляем сколько идти до узла
+                    distances[neighbour] = distances[current_node] + 1
+                    previous_node[neighbour] = current_node
                     queue.append(neighbour)
 
+        # Шлюзы, до которых можно дойти
         reachable_gateways = [gw for gw in target_gateways if gw in distances]
         if not reachable_gateways:
             return None, None
@@ -58,22 +56,12 @@ class Graph:
         best_gw = min(candidates_gateways)
 
         path = []
-        current = best_gw
-        while current is not None:
-            path.append(current)
-            current = previous.get(current)
+        current_node = best_gw
+        while current_node is not None:
+            path.append(current_node)
+            current_node = previous_node.get(current_node)
         path.reverse()
         return path, best_gw
-
-    def get_all_gateway_edges(self) -> List[Tuple[str, str]]:
-        edges = []
-        for gw in self.gateways:
-            node = self.nodes[gw]
-            for neigh in node.neighbors:
-                if not self.nodes[neigh].is_gateway:
-                    edges.append((gw, neigh))
-        edges.sort(key=lambda x: (x[0], x[1]))
-        return edges
 
     def simulate(self, virus_start: str) -> List[str]:
         virus = virus_start
@@ -81,40 +69,23 @@ class Graph:
 
         while True:
             path, target = self.bfs_shortest_path(virus, self.gateways)
-            if path and len(path) == 2:
-                gw = path[1]
-                edge = f"{gw}-{virus}"
-                blocked.append(edge)
-                self.nodes[gw].remove_neighbor(virus)
-                self.nodes[virus].remove_neighbor(gw)
-                continue
-
-            if not path:
-                break
-
-            candidates = self.get_all_gateway_edges()
-            if not candidates:
-                break
-
-            blocked_this_turn = False
-            for gw, node in candidates:
-                self.nodes[gw].remove_neighbor(node)
-                self.nodes[node].remove_neighbor(gw)
-
-                new_path, _ = self.bfs_shortest_path(virus, self.gateways)
-
-                if not new_path or len(new_path) > 2:
-                    blocked.append(f"{gw}-{node}")
-                    blocked_this_turn = True
-                    break
+            if path:
+                if len(path) == 2:
+                    gw = path[1]
+                    edge = f"{gw}-{virus}"
+                    blocked.append(edge)
+                    self.nodes[gw].remove_neighbor(virus)
+                    self.nodes[virus].remove_neighbor(gw)
                 else:
-                    self.nodes[gw].add_neighbor(node)
-                    self.nodes[node].add_neighbor(gw)
-
-            if not blocked_this_turn:
+                    gw = path[-1]
+                    node = path[-2]
+                    edge = f"{gw}-{node}"
+                    blocked.append(edge)
+                    self.nodes[gw].remove_neighbor(node)
+                    self.nodes[node].remove_neighbor(gw)
+            else:
                 break
-
-            path, _ = self.bfs_shortest_path(virus, self.gateways)
+            path, target = self.bfs_shortest_path(virus, self.gateways)
             if path and len(path) > 1:
                 virus = path[1]
             else:
