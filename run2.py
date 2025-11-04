@@ -61,7 +61,7 @@ def simulate(graph, gateways, virus_start):
 
         nearby_gw = sorted([g for g in graph[virus] if g in gateways])
         if nearby_gw:
-            gateway = nearby_gw.pop()
+            gateway = nearby_gw[0]
             blocked_paths.append(f"{gateway}-{virus}")
             graph[gateway].remove(virus)
             graph[virus].remove(gateway)
