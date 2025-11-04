@@ -18,6 +18,10 @@ class Node:
 class Graph:
     def __init__(self, edges):
         self.nodes = {}
+        self._setup_nodes(edges)
+        self.gateways = {name for name, node in self.nodes.items() if node.is_gateway}
+
+    def _setup_nodes(self, edges):
         for node1, node2 in edges:
             if node1 not in self.nodes:
                 self.nodes[node1] = Node(node1)
@@ -25,37 +29,41 @@ class Graph:
                 self.nodes[node2] = Node(node2)
             self.nodes[node1].add_neighbor(node2)
             self.nodes[node2].add_neighbor(node1)
-        self.gateways = {name for name, node in self.nodes.items() if node.is_gateway}
 
     def bfs_shortest_path(self, start, target_gateways):
-        queue = deque([[start]])
-        visited = {start}
-        best_path = None
-        best_gateway = None
+        distances = {start: 0}
+        previous = {start: None}
+        queue = deque([start])
 
         while queue:
-            path = queue.popleft()
-            node_name = path[-1]
-            node = self.nodes[node_name]
+            current = queue.popleft()
+            for neighbor in sorted(self.nodes[current].neighbors):
+                if neighbor not in distances:
+                    distances[neighbor] = distances[current] + 1
+                    previous[neighbor] = current
+                    queue.append(neighbor)
 
-            if node.is_gateway and node_name in target_gateways:
-                if (best_path is None or
-                    len(path) < len(best_path) or
-                    (len(path) == len(best_path) and node_name < best_gateway)):
-                    best_path = path
-                    best_gateway = node_name
-                continue
+        reachable_gateways = [gw for gw in target_gateways if gw in distances]
+        if not reachable_gateways:
+            return None, None
 
-            for neighbor_name in sorted(node.neighbors):
-                if neighbor_name not in visited:
-                    visited.add(neighbor_name)
-                    queue.append(path + [neighbor_name])
+        min_distance = min(distances[gw] for gw in reachable_gateways)
+        candidate_gateways = [gw for gw in reachable_gateways if distances[gw] == min_distance]
+        best_gateway = min(candidate_gateways)
 
-        return best_path, best_gateway
+        path = []
+        current = best_gateway
+        while current is not None:
+            path.append(current)
+            current = previous[current]
+        path.reverse()
+        return path, best_gateway
 
     def next_step(self, current, target):
         path, _ = self.bfs_shortest_path(current, {target})
-        return path[1] if path and len(path) > 1 else current
+        if path and len(path) > 1:
+            return path[1]
+        return current
 
     def simulate(self, virus_start):
         virus = virus_start
@@ -73,15 +81,14 @@ class Graph:
                 blocked.append(f"{gw_to_block}-{virus}")
                 node.remove_neighbor(gw_to_block)
                 self.nodes[gw_to_block].remove_neighbor(virus)
-                continue
+            else:
+                prev_node = path[-2]
+                gw_node = path[-1]
+                blocked.append(f"{gw_node}-{prev_node}")
+                self.nodes[gw_node].remove_neighbor(prev_node)
+                self.nodes[prev_node].remove_neighbor(gw_node)
 
-            prev_node = path[-2]
-            gw_node = path[-1]
-            blocked.append(f"{gw_node}-{prev_node}")
-            self.nodes[gw_node].remove_neighbor(prev_node)
-            self.nodes[prev_node].remove_neighbor(gw_node)
-
-            virus = self.next_step(virus, gateway)
+                virus = self.next_step(virus, gateway)
 
         return blocked
 
