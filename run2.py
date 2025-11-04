@@ -17,8 +17,7 @@ def build_graph(edges):
 
     return graph, gateways
 
-
-def bfs_path(start, gateways, graph):
+def bfs_path(start, target_gateways, graph):
     queue = deque([[start]])
     visited = {start}
     best_path = None
@@ -26,61 +25,54 @@ def bfs_path(start, gateways, graph):
 
     while queue:
         path = queue.popleft()
-        node = path[-1]
-
-        if node in gateways:
-            if (
-                best_gateway is None
-                or len(path) < len(best_path)
-                or (len(path) == len(best_path) and node < best_gateway)
-            ):
-                best_path, best_gateway = path, node
+        current_node = path[-1]
+        if current_node in target_gateways:
+            if (best_path is None or
+                len(path) < len(best_path) or
+                (len(path) == len(best_path) and current_node < best_gateway)):
+                best_path = path
+                best_gateway = current_node
             continue
-
-        for neighbor in sorted(graph[node]):
+        for neighbor in sorted(graph[current_node]):
             if neighbor not in visited:
                 visited.add(neighbor)
                 queue.append(path + [neighbor])
-
     return best_path, best_gateway
 
-
-def move_towards_gateway(current, target, graph):
+def next_step_towards(current, target, graph):
     path, _ = bfs_path(current, {target}, graph)
     return path[1] if path and len(path) > 1 else current
 
-
 def simulate(graph, gateways, virus_start):
-    blocked_paths = []
-    virus = virus_start
+    blocked_edges = []
+    virus_position = virus_start
 
     while True:
-        path, target_gateway = bfs_path(virus, gateways, graph)
-        if not path or not target_gateway:
+        path_to_gateway, nearest_gateway = bfs_path(virus_position, gateways, graph)
+        if not path_to_gateway or not nearest_gateway:
             break
 
-        nearby_gw = sorted([g for g in graph[virus] if g in gateways])
-        if nearby_gw:
-            gateway = nearby_gw[0]
-            blocked_paths.append(f"{gateway}-{virus}")
-            graph[gateway].remove(virus)
-            graph[virus].remove(gateway)
+        adjacent_gateways = sorted([g for g in graph[virus_position] if g in gateways])
+        if adjacent_gateways:
+            gateway_to_block = adjacent_gateways[0]
+            blocked_edges.append(f"{gateway_to_block}-{virus_position}")
+            graph[gateway_to_block].remove(virus_position)
+            graph[virus_position].remove(gateway_to_block)
             continue
 
-        *_, prev_node, gateway_node = path
-        blocked_paths.append(f"{gateway_node}-{prev_node}")
+        prev_node = path_to_gateway[-2]
+        gateway_node = path_to_gateway[-1]
+        blocked_edges.append(f"{gateway_node}-{prev_node}")
         graph[gateway_node].remove(prev_node)
         graph[prev_node].remove(gateway_node)
 
-        virus = move_towards_gateway(virus, target_gateway, graph)
+        virus_position = next_step_towards(virus_position, nearest_gateway, graph)
 
-    return blocked_paths
-
+    return blocked_edges
 
 def solve(edges):
     graph, gateways = build_graph(edges)
     return simulate(graph, gateways, VIRUS_START)
-
 
 def main():
     edges = []
